@@ -157,18 +157,18 @@ private:
     void start();
     void copy();
     void load_meta_table();
-    int filter_before_copy(LocalSnapshotWriter* writer, 
+    int filter_before_copy(std::atomic<LocalSnapshotWriter*>& writer, 
                            SnapshotReader* last_snapshot);
     void filter();
     void copy_file(const std::string& filename);
 
     raft_mutex_t _mutex;
     bthread_t _tid;
-    bool _cancelled;
+    std::atomic_bool _cancelled;
     bool _filter_before_copy_remote;
     FileSystemAdaptor* _fs;
     SnapshotThrottle* _throttle;
-    LocalSnapshotWriter* _writer;
+    std::atomic<LocalSnapshotWriter*> _writer;
     LocalSnapshotStorage* _storage;
     SnapshotReader* _reader;
     RemoteFileCopier::Session* _cur_session;
