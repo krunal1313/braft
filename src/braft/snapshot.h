@@ -27,6 +27,7 @@
 #include "braft/file_system_adaptor.h"
 #include "braft/remote_file_copier.h"
 #include "braft/snapshot_throttle.h"
+#include <thread>
 
 namespace braft {
 
@@ -174,6 +175,7 @@ private:
     RemoteFileCopier::Session* _cur_session;
     LocalSnapshot _remote_snapshot;
     RemoteFileCopier _copier;
+    std::vector<std::thread> _snapshot_threads_pool;
 };
 
 class LocalSnapshotStorage : public SnapshotStorage {

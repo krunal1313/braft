@@ -36,6 +36,10 @@
 
 namespace braft {
 
+DEFINE_int32(raft_max_threads_snapshot_copy, 1, 
+                     "Max threads to use for snapshot copy");
+BRPC_VALIDATE_GFLAG(raft_max_threads_snapshot_copy, brpc::PositiveInteger);
+
 DEFINE_int32(raft_max_election_delay_ms, 1000, 
              "Max election delay time allowed by user");
 BRPC_VALIDATE_GFLAG(raft_max_election_delay_ms, brpc::PositiveInteger);

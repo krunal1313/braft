@@ -27,13 +27,14 @@
 #include "braft/snapshot.h"
 #include "braft/node.h"
 #include "braft/file_service.h"
-#include <thread>
 
 //#define BRAFT_SNAPSHOT_PATTERN "snapshot_%020ld"
 #define BRAFT_SNAPSHOT_PATTERN "snapshot_%020" PRId64
 #define BRAFT_SNAPSHOT_META_FILE "__raft_snapshot_meta"
 
 namespace braft {
+
+DECLARE_int32(raft_max_threads_snapshot_copy);
 
 const char* LocalSnapshotStorage::_s_temp_path = "temp";
 
@@ -775,35 +776,40 @@ void LocalSnapshotCopier::copy() {
         std::vector<std::string> files;
         _remote_snapshot.list_files(&files);
         size_t filesCount = files.size();
-        size_t bucketSize = filesCount/4;
+        size_t max_threads = FLAGS_raft_max_threads_snapshot_copy > filesCount ?
+                             filesCount : FLAGS_raft_max_threads_snapshot_copy;
+        size_t bucketSize = filesCount/max_threads;
+        size_t bucketMod = filesCount % max_threads;
+        size_t startId = 0, endId = bucketSize;
+        std::vector<std::pair<size_t, size_t>> threads_ranges;
 
-        std::thread t1([&](){
-            for(size_t i = 0; i< bucketSize; ++i)
-                copy_file(files[i]);
-        });
+        for(int i = 0; i < max_threads; ++i) {
 
-        std::thread t2([&](){
-            for(size_t i = bucketSize; i < 2*bucketSize; ++i)
-                copy_file(files[i]);
-        });
+            threads_ranges.emplace_back(std::make_pair(startId, endId));
 
-        std::thread t3([&](){
-            for(size_t i = 2*bucketSize; i< 3*bucketSize; ++i)
-                copy_file(files[i]);
-        });
+            startId += bucketSize;
+            endId += bucketSize;
 
-        std::thread t4([&](){
-            for(size_t i = 3*bucketSize; i< filesCount; ++i)
-                copy_file(files[i]);
-        });
-        // for (size_t i = 0; i < files.size() && ok(); ++i) {
-        //     copy_file(files[i]);
-        // }
+            if((i == (max_threads - 2)) //next iteration is last
+                && (bucketMod != 0)) {
+                endId += bucketMod; //add remaining files to last thread
+            }
+        }
         
-        t1.join();
-        t2.join();
-        t3.join();
-        t4.join();
+        for(int i = 0; i < max_threads; ++i) {
+
+            auto& range_pair = threads_ranges[i];
+            std::thread t([&](){
+                for(size_t j = range_pair.first; j < range_pair.second; ++j)
+                    copy_file(files[j]);
+            });
+            _snapshot_threads_pool.emplace_back(std::move(t));
+
+        }
+        
+        for(auto &t : _snapshot_threads_pool) {
+            t.join();
+        }
 
     } while (0);
     
