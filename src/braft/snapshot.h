@@ -143,6 +143,11 @@ private:
     LocalSnapshotMetaTable _meta_table;
 };
 
+struct RemoteSnapshotCopier {
+    RemoteFileCopier::Session* _cur_session;
+    RemoteFileCopier _copier;
+};
+
 class LocalSnapshotStorage;
 class LocalSnapshotCopier : public SnapshotCopier {
 friend class LocalSnapshotStorage;
@@ -158,24 +163,25 @@ private:
     void start();
     void copy();
     void load_meta_table();
-    int filter_before_copy(std::atomic<LocalSnapshotWriter*>& writer, 
+    int filter_before_copy(LocalSnapshotWriter* writer, 
                            SnapshotReader* last_snapshot);
     void filter();
-    void copy_file(const std::string& filename);
+    void copy_file(const std::vector<std::string>& filenames);
 
     raft_mutex_t _mutex;
     bthread_t _tid;
-    std::atomic_bool _cancelled;
+    bool _cancelled;
     bool _filter_before_copy_remote;
     FileSystemAdaptor* _fs;
     SnapshotThrottle* _throttle;
-    std::atomic<LocalSnapshotWriter*> _writer;
+    LocalSnapshotWriter* _writer;
     LocalSnapshotStorage* _storage;
     SnapshotReader* _reader;
-    RemoteFileCopier::Session* _cur_session;
+    //RemoteFileCopier::Session* _cur_session;
     LocalSnapshot _remote_snapshot;
-    RemoteFileCopier _copier;
+    //RemoteFileCopier _copier;
     std::vector<std::thread> _snapshot_threads_pool;
+    std::vector<RemoteSnapshotCopier*> _snapshot_copier_pool;
 };
 
 class LocalSnapshotStorage : public SnapshotStorage {
